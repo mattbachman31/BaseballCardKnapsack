@@ -82,7 +82,7 @@ int KWF(int i, int weight, Player* arr, int size, int C, ofstream& myOut){
 	for(int j=i; j<size; j++){
 		arrSet[j] = 0;
 	}
-	while(weight < C && i < size){ //fix no slot 0 on array
+	while(weight < C && i < size){ 
 		if(weight + arr[i].buyingPrice <= C){
 			arrSet[i] = 1;
 			weight += arr[i].buyingPrice;
@@ -99,7 +99,6 @@ int KWF(int i, int weight, Player* arr, int size, int C, ofstream& myOut){
 }
 
 int KWF2(int i, int weight, Player* arr, int size, int C, ofstream& myOut, int profitSoFar){
-	//myOut << "KWF2: " << endl;
 	return KWF(i,weight,arr,size,C,myOut) + profitSoFar;
 }
 
@@ -131,6 +130,43 @@ void knapsack(int profit, int weight, int i, Player* arr, ofstream& myOut){
 	}
 }
 
+/**DYNAMIC CODE STARTS HERE **/
+
+void dynamic(ofstream& myOut, int S1, int moneyToSpend, Player* arr){
+	myOut << "Dynamic Programming: ";
+	int** thisArray = new int*[S1+1];
+	int lesserToSpend=0;
+	int currentPlayer=0;
+	thisArray[0] = new int[moneyToSpend+1];
+	for(lesserToSpend=0; lesserToSpend<=moneyToSpend; lesserToSpend++){
+		thisArray[0][lesserToSpend] = 0;
+	}
+	for(currentPlayer=1; currentPlayer<=S1; currentPlayer++){
+		if(currentPlayer > 1){
+			delete [] thisArray[currentPlayer-2];
+		}
+		thisArray[currentPlayer] = new int[moneyToSpend+1];
+		thisArray[currentPlayer][0] = 0;
+		for(lesserToSpend=1; lesserToSpend<=moneyToSpend; lesserToSpend++){
+			if(arr[currentPlayer-1].buyingPrice <= lesserToSpend){
+				if(thisArray[currentPlayer-1][lesserToSpend-arr[currentPlayer-1].buyingPrice] + arr[currentPlayer-1].profit > thisArray[currentPlayer-1][lesserToSpend]){
+					thisArray[currentPlayer][lesserToSpend] = thisArray[currentPlayer-1][lesserToSpend-arr[currentPlayer-1].buyingPrice] + arr[currentPlayer-1].profit;
+				}
+				else{
+					thisArray[currentPlayer][lesserToSpend] = thisArray[currentPlayer-1][lesserToSpend];
+				}
+			}
+			else{
+				thisArray[currentPlayer][lesserToSpend] = thisArray[currentPlayer-1][lesserToSpend];
+			}
+		}
+	}
+	myOut << S1 << " " << thisArray[S1][moneyToSpend] << " ";
+	delete [] thisArray[currentPlayer-2];
+	delete [] thisArray[currentPlayer-1];
+	delete [] thisArray;
+}
+
 int main(int argc, char** argv){
 	struct timeval start, end;
 	if(argc != 8 || (strcmp(argv[1],"-m") != 0) || (strcmp(argv[3],"-p") != 0) || (strcmp(argv[5],"-o") != 0)){
@@ -141,6 +177,7 @@ int main(int argc, char** argv){
 	ifstream marketFile(argv[2]);
 	ifstream priceFile(argv[4]);
 	ofstream myOut(argv[6]);
+	int currentFileIndex = 0;
 	if(!(marketFile.is_open() && priceFile.is_open())){
 		myOut << "File(s) not found. Terminating.\n";
 		exit(1);
@@ -178,27 +215,20 @@ int main(int argc, char** argv){
 		globalC = moneyToSpend;
 		int arrIndex=0;
 		int decS1 = S1;
+		int j=0;
 		while(decS1){
 			decS1--;
 			getline(priceFile, line);
 			space = line.find(' ');
 			s1 = line.substr(0, space);
 			s2 = line.substr(space+1, line.length()-space-1);
-			
-			for(int j=0; j<playerIndex; j++){
-				if(arrMarket[j].name == s1){
-					arr[arrIndex].name = s1;
-					arr[arrIndex].sellingPrice = arrMarket[j].sellingPrice;
-					arr[arrIndex].buyingPrice = atoi(s2.c_str());
-					arr[arrIndex].profit = arr[arrIndex].sellingPrice - arr[arrIndex].buyingPrice;
-					arr[arrIndex].pow = (float)arr[arrIndex].profit/(float)arr[arrIndex].buyingPrice;
-					arrIndex++;
-					if(arrIndex%100000){
-						cout << "hi" << endl;
-					}
-					break;
-				}
-			}
+			while(arrMarket[j].name != s1){j++;}
+			arr[arrIndex].name = s1;
+			arr[arrIndex].sellingPrice = arrMarket[j].sellingPrice;
+			arr[arrIndex].buyingPrice = atoi(s2.c_str());
+			arr[arrIndex].profit = arr[arrIndex].sellingPrice - arr[arrIndex].buyingPrice;
+			arr[arrIndex].pow = (float)arr[arrIndex].profit/(float)arr[arrIndex].buyingPrice;
+			arrIndex++;
 		}
 		qsort(arr, S1, sizeof(Player), comp);
 		int weight=0, index=0;
@@ -222,21 +252,29 @@ int main(int argc, char** argv){
 			maxProfit = greedy2(0,0,arr,S1,moneyToSpend,myOut);
 			knapsack(0,0,-1,arr,myOut);
 		}
+		else if(mode == 3){
+			dynamic(myOut, S1, moneyToSpend, arr);
+		}
 		double totaltime = total_time(&start, &end);
-		myOut << S1 << " " << maxProfit << " ";
-		int numToAchieve = 0;
+		if(mode != 3){
+			myOut << S1 << " " << maxProfit << " ";
+			int numToAchieve = 0;
 
-		for(int w=0; w<S1; w++){
-			if(bestSet[w] == 1){
-				numToAchieve++;
+			for(int w=0; w<S1; w++){
+				if(bestSet[w] == 1){
+					numToAchieve++;
+				}
+			}
+			myOut << numToAchieve << " " << totaltime << endl;
+			if(mode == 2 && price != "LargePriceList.txt"){myOut << numTaken << " subsets considered; " << numAvoided << " subsets avoided via backtracking" << endl;} // << pow(2, globalPlayerCount+1)-1 << endl;
+			for(int w=0; w<S1; w++){
+				if(bestSet[w] == 1){
+					myOut << arr[w].name << endl;
+				}
 			}
 		}
-		myOut << numToAchieve << " " << totaltime << endl;
-		if(mode == 2 && price != "LargePriceList.txt"){myOut << numTaken << " subsets considered; " << numAvoided << " subsets avoided via backtracking" << endl;} // << pow(2, globalPlayerCount+1)-1 << endl;
-		for(int w=0; w<S1; w++){
-			if(bestSet[w] == 1){
-				myOut << arr[w].name << endl;
-			}
+		else{
+			myOut << totaltime << endl;
 		}
 		delete [] arr;
 		delete [] includeArr;
